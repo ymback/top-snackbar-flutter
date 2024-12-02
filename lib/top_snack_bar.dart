@@ -6,9 +6,6 @@ import 'package:top_snackbar_flutter/tap_bounce_container.dart';
 
 typedef ControllerCallback = void Function(AnimationController);
 
-/// Represents possible triggers to dismiss the snackbar.
-enum DismissType { onTap, onSwipe, none }
-
 /// Represents possible vertical position of snackbar.
 enum SnackBarPosition { top, bottom }
 
@@ -68,9 +65,7 @@ void showTopSnackBar(
   Curve curve = Curves.elasticOut,
   Curve reverseCurve = Curves.linearToEaseOut,
   SafeAreaValues safeAreaValues = const SafeAreaValues(),
-  DismissType dismissType = DismissType.onTap,
   SnackBarPosition snackBarPosition = SnackBarPosition.top,
-  List<DismissDirection> dismissDirection = const [DismissDirection.up],
 }) {
   late OverlayEntry _overlayEntry;
   _overlayEntry = OverlayEntry(
@@ -90,9 +85,7 @@ void showTopSnackBar(
         curve: curve,
         reverseCurve: reverseCurve,
         safeAreaValues: safeAreaValues,
-        dismissType: dismissType,
         snackBarPosition: snackBarPosition,
-        dismissDirections: dismissDirection,
         child: child,
       );
     },
@@ -119,12 +112,10 @@ class _TopSnackBar extends StatefulWidget {
     required this.curve,
     required this.reverseCurve,
     required this.safeAreaValues,
-    required this.dismissDirections,
     required this.snackBarPosition,
     this.onTap,
     this.persistent = false,
     this.onAnimationControllerInit,
-    this.dismissType = DismissType.onTap,
   }) : super(key: key);
 
   final Widget child;
@@ -139,8 +130,6 @@ class _TopSnackBar extends StatefulWidget {
   final Curve curve;
   final Curve reverseCurve;
   final SafeAreaValues safeAreaValues;
-  final DismissType dismissType;
-  final List<DismissDirection> dismissDirections;
   final SnackBarPosition snackBarPosition;
 
   @override
@@ -180,7 +169,7 @@ class _TopSnackBarState extends State<_TopSnackBar> with SingleTickerProviderSta
 
     widget.onAnimationControllerInit?.call(_animationController);
 
-    switch(widget.snackBarPosition) {
+    switch (widget.snackBarPosition) {
       case SnackBarPosition.top:
         _offsetTween = Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero);
         break;
@@ -233,40 +222,22 @@ class _TopSnackBarState extends State<_TopSnackBar> with SingleTickerProviderSta
 
   /// Build different type of [Widget] depending on [DismissType] value
   Widget _buildDismissibleChild() {
-    switch (widget.dismissType) {
-      case DismissType.onTap:
-        return TapBounceContainer(
-          onTap: () {
-            widget.onTap?.call();
-            if (!widget.persistent && mounted) {
-              _animationController.reverse();
-            }
-          },
-          child: widget.child,
-        );
-      case DismissType.onSwipe:
-        var childWidget = widget.child;
-        for (final direction in widget.dismissDirections) {
-          childWidget = Dismissible(
-            direction: direction,
-            key: UniqueKey(),
-            dismissThresholds: const {DismissDirection.up: 0.2},
-            confirmDismiss: (direction) async {
-              if (!widget.persistent && mounted) {
-                if (direction == DismissDirection.down) {
-                  await _animationController.reverse();
-                } else {
-                  _animationController.reset();
-                }
-              }
-              return false;
-            },
-            child: childWidget,
-          );
+    return GestureDetector(
+      onTap: () {
+        widget.onTap?.call();
+        if (!widget.persistent && mounted) {
+          _animationController.reset();
         }
-        return childWidget;
-      case DismissType.none:
-        return widget.child;
-    }
+      },
+      onVerticalDragEnd: (detail) async {
+        if (detail.velocity.pixelsPerSecond.dy < 0) {
+          if (!widget.persistent && mounted) {
+            await _animationController.reverse();
+          }
+        }
+      },
+      behavior: HitTestBehavior.translucent,
+      child: widget.child,
+    );
   }
 }
